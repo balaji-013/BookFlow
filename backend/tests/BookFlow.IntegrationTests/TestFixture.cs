@@ -35,6 +35,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Key", "integration-tests-key-0123456789-0123456789-abcdef");
         builder.UseSetting("Database:MigrateOnStartup", "false");
         builder.UseSetting("Serilog:MinimumLevel:Default", "Warning");
+        // Every test registers its own tenant from the same in-memory client, so the production auth limit (10/min) would throttle the suite.
+        builder.UseSetting("RateLimiting:AuthPermitLimit", "1000");
     }
 
     public async Task ResetDatabaseAsync()

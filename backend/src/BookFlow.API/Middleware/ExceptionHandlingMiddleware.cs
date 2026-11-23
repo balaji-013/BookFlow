@@ -41,8 +41,8 @@ public sealed class ExceptionHandlingMiddleware
             foreach (var (k, v) in extensions) problem.Extensions[k] = v;
 
             context.Response.StatusCode = status;
-            context.Response.ContentType = "application/problem+json";
-            await context.Response.WriteAsJsonAsync(problem);
+            // WriteAsJsonAsync overwrites Response.ContentType with application/json unless the type is passed here.
+            await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
         }
     }
 

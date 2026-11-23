@@ -259,21 +259,27 @@ public sealed class SalesService : ISalesService
         foreach (var g in r.Lines.GroupBy(l => l.SalesInvoiceItemId))
         {
             var item = inv.Items.FirstOrDefault(x => x.Id == g.Key) ?? throw new NotFoundException("InvoiceItem", g.Key);
-            var qty = g.Sum(x => x.Quantity);
-            if (qty > item.Quantity - item.QuantityReturned)
-                throw new BusinessRuleException("over-return", $"Cannot return {qty} of '{item.Title}'; only {item.Quantity - item.QuantityReturned} eligible.");
-            var condition = g.Last().Condition;
-            // proportional amounts from the invoice line
-            var taxable = Money.Round2(item.TaxableAmount * qty / item.Quantity);
-            var tax = Money.Round2((item.CgstAmount + item.SgstAmount + item.IgstAmount) * qty / item.Quantity);
-            item.QuantityReturned += qty;
-            sr.Items.Add(new SalesReturnItem
+            var totalQty = g.Sum(x => x.Quantity);
+            if (totalQty > item.Quantity - item.QuantityReturned)
+                throw new BusinessRuleException("over-return", $"Cannot return {totalQty} of '{item.Title}'; only {item.Quantity - item.QuantityReturned} eligible.");
+            item.QuantityReturned += totalQty;
+
+            // One return line per condition, so a mixed return (some resalable, some damaged) books each part correctly.
+            foreach (var byCondition in g.GroupBy(x => x.Condition))
             {
-                SalesInvoiceItemId = item.Id, BookId = item.BookId, Quantity = qty, Condition = condition, UnitPrice = item.UnitPrice,
-                TaxableAmount = taxable, TaxAmount = tax, LineTotal = taxable + tax
-            });
-            if (condition == ReturnCondition.Resalable) resalable.Add(new StockDelta(item.BookId, qty, item.UnitCost));
-            else damaged.Add((item.BookId, qty, item.UnitCost));
+                var condition = byCondition.Key;
+                var qty = byCondition.Sum(x => x.Quantity);
+                // proportional amounts from the invoice line
+                var taxable = Money.Round2(item.TaxableAmount * qty / item.Quantity);
+                var tax = Money.Round2((item.CgstAmount + item.SgstAmount + item.IgstAmount) * qty / item.Quantity);
+                sr.Items.Add(new SalesReturnItem
+                {
+                    SalesInvoiceItemId = item.Id, BookId = item.BookId, Quantity = qty, Condition = condition, UnitPrice = item.UnitPrice,
+                    TaxableAmount = taxable, TaxAmount = tax, LineTotal = taxable + tax
+                });
+                if (condition == ReturnCondition.Resalable) resalable.Add(new StockDelta(item.BookId, qty, item.UnitCost));
+                else damaged.Add((item.BookId, qty, item.UnitCost));
+            }
         }
         sr.SubTotal = sr.Items.Sum(i => i.TaxableAmount);
         sr.TaxTotal = sr.Items.Sum(i => i.TaxAmount);
