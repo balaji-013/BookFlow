@@ -1,0 +1,16 @@
+# .NET
+**/bin/
+**/obj/
+**/TestResults/
+.vs/
+*.user
+# Node / Angular
+node_modules/
+frontend/dist/
+frontend/.angular/
+# Env & secrets
+deploy/.env
+*.pfx
+# OS
+.DS_Store
+Thumbs.db
